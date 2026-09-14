@@ -1,0 +1,65 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: nailstudio_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nailstudio
+      POSTGRES_PASSWORD: nailstudio
+      POSTGRES_DB: nailstudio
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nailstudio -d nailstudio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - nailstudio
+
+  backend:
+    build: ./backend
+    container_name: nailstudio_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg2://nailstudio:nailstudio@db:5432/nailstudio
+      SECRET_KEY: change-me-in-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      # --- Уведомления: SMTP (email) ---
+      SMTP_HOST: ""
+      SMTP_PORT: 587
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_FROM: ""
+      SMTP_USE_TLS: "true"
+      # --- Уведомления: Telegram-бот ---
+      TELEGRAM_BOT_TOKEN: ""
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - nailstudio
+
+  frontend:
+    build: ./frontend
+    container_name: nailstudio_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - nailstudio
+
+volumes:
+  db_data:
+
+networks:
+  nailstudio:
